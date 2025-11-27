@@ -1,0 +1,66 @@
+version: "3.8"
+services:
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.2
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # ❗ Disable HTTPS + password auth
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 1g
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.2
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+
+  logging-service:
+    build: ./logging-service
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTIC_URL=http://elasticsearch:9200
+    ports:
+      - "3002:3002"
+
+  task-router:
+    build: ./task-router
+    depends_on:
+      - rabbitmq
+      - logging-service
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - LOGGING_URL=http://logging-service:3002/logs
+      - PORT=3000
+    ports:
+      - "3000:3000"
+
+  delivery-service:
+    build: ./delivery-service
+    depends_on:
+      - rabbitmq
+      - logging-service
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - LOGGING_URL=http://logging-service:3002/logs
+      - PORT=3001
+    ports:
+      - "3001:3001"
