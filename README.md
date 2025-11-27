@@ -32,7 +32,55 @@ Messages are routed intelligently to channels like Email, SMS, WhatsApp, and new
        Supports visualisation in Kibana
 
 2.  High-Level Architecture (HLD)
-   ![Uploading buncha.jpg…]()
+  ┌────────────────────┐
+    │ Client App │
+    │ (POST /messages) │
+    └─────────┬──────────┘
+    │
+    ▼
+    ┌────────────────────────┐
+    │ Task Router Service │
+    │ - Validation │
+    │ - Dedup │
+    │ - Publish to Queue │
+    │ - Retry Logic │
+    └───────┬────────────────┘
+    │ publish(channel)
+    ▼
+    ┌────────────────────────────────────────┐
+    │ RabbitMQ │
+    │ (message_exchange + channel queues) │
+    └────┬──────────────┬───────────────┬────┘
+    │ │ │
+    ▼ ▼ ▼
+    Email Queue SMS Queue WhatsApp Queue
+    │ │ │
+    ▼ ▼ ▼
+    ┌────────────────────────────────────────────────┐
+    │ Delivery Service (Workers) │
+    │ - email.sender │
+    │ - sms.sender │
+    │ - whatsapp.sender │
+    └──────────┬────────────┬───────────────┬────────┘
+    │ │ │
+    ▼ ▼ ▼
+    publish(status) via status_exchange (RabbitMQ)
+    │
+    ▼
+    ┌────────────────────────┐
+    │ Task Router Service │
+    │ - Handle status │
+    │ - Retry if needed │
+    └───────────┬────────────┘
+    │
+    ▼
+    ┌──────────────────┐
+    │ Logging Service │
+    │ → Elasticsearch │
+    └──────────────────┘
+    │
+    ▼
+    Kibana Dashboard
 
 
 3.  Folder Structure
